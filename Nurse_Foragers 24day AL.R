@@ -1,0 +1,75 @@
+library("DESeq2")
+setwd("E:/24.03.2020/Dokumente/Experiment/2019.04.09 Honeybee Cage experiment/Results/Result_geneid/Nures-Foragers 24day old/R analysis/Nurse_Foragers 24day AL")
+sampleNames <- c("NuFA1AL_Control","NuFC1AL_Control","NuFC2AL_Control","NuFC3AL_Control","NuFD1AL_Control","NuFD3AL_Control",
+                 "NuFA1AL_QMP","NuFA2AL_QMP","NuFC1AL_QMP","NuFC2AL_QMP","NuFD1AL_QMP","NuFD2AL_QMP",
+                 "CoFA1AL","CoFA4AL","CoFC1AL","CoFC2AL","CoFD1AL","CoFD2AL")
+mydata <- read.table("Nurse_Foragers 24day AL.txt", header = TRUE)
+names(mydata)[2:19] <- sampleNames
+countMatrix <- as.matrix(mydata[2:19])
+rownames(countMatrix) <-mydata$Geneid
+table2 <- data.frame(name = c("ColNur1","ColNur2","ColNur3","ColNur4","ColNur5","ColNur6",
+                              "QMP1","QMP2","QMP3","QMP4","QMP5","QMP6",
+                              "ColFor1","ColFor2","ColFor3","ColFor4","ColFor5","ColFor6"),
+                     condition = c("ColNur","ColNur","ColNur","ColNur","ColNur","ColNur",
+                                   "QMP","QMP","QMP","QMP","QMP","QMP",
+                                   "ColFor","ColFor","ColFor","ColFor","ColFor","ColFor"),
+                     colony = c("A","C","C","C","D","D",
+                                "A","A","C","C","D","D",
+                                "A","A","C","C","D","D"))
+rownames(table2) <- sampleNames
+#########Filter:The number of counts beyond 9 at least 5 samples
+countMatrix_filter1<-countMatrix[rowSums(countMatrix>9)>=5,]
+head(countMatrix_filter1)
+dds <- DESeqDataSetFromMatrix(countMatrix_filter1, colData=table2, design= ~ colony+condition)
+dds<-DESeq(dds,test="LRT", reduced = ~colony)
+
+
+res <- results(dds)
+write.table(res,"Nurse_Foragers 24day ALresult.csv", sep = ",", row.names = TRUE)
+head(res)
+summary(res)
+
+rld <- rlog(dds)
+#plotPCA(rld, intgroup=c("condition","colony"), ntop=length(rownames(matrix_cook)))
+
+library(ggplot2)
+data1 <- plotPCA(rld,intgroup=c("condition","colony"),ntop=length(rownames(countMatrix_filter1)),returnData=TRUE)
+percentVar <- round(100*attr(data1, "percentVar"))
+p<-ggplot(data1,aes(PC1,PC2,color=condition, shape=colony))+
+  scale_color_manual(values = c("#7fbf7b","#fc8d62","#91bfdb"))+
+  geom_point(size=8)+
+  xlab(paste0("PC1:",percentVar[1],"%variance"))+
+  ylab(paste0("PC2:",percentVar[2],"%variance"))
+p
+theme<-theme(panel.background = element_blank(),panel.border=element_rect(fill=NA),
+             panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+             strip.background=element_blank(),axis.text.x=element_text(colour="black"),
+             axis.text.y=element_text(colour="black"),axis.ticks=element_line(colour="black"),plot.margin=unit(c(1,1,1,1),"line"))
+p1<-p+geom_point()+theme
+p1
+theme2<-theme(axis.text.x=element_text(size=26,face = "plain",hjust = 0.5),
+              axis.text.y=element_text(size=26,face = "plain",hjust = 0.5))
+p2<-p1+theme2
+p2
+
+
+#pn<-p+geom_text(aes(label=sampleNames),vjust=1.5,colour='red')
+#pn
+
+
+library("pheatmap")
+select<-
+  order(rowMeans(counts(dds,normalized=TRUE)),decreasing = TRUE)[1:1000]
+nt<-normTransform(dds)
+log2.norm.counts<-assay(nt)[select,]
+df<-as.data.frame(colData(dds)[,c("name","condition")])
+pdf('heatmap1000.pdf',width = 7,height = 8)
+pheatmap(log2.norm.counts,cluster_rows = TRUE,show_rownames = FALSE,cluster_cols = TRUE,annotation_col = df)
+
+
+
+
+
+
+
+
